@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:context="http://www.springframework.org/schema/context"
+	xmlns:aop="http://www.springframework.org/schema/aop"
+	xmlns:lang="http://www.springframework.org/schema/lang"
+	xmlns:mvc="http://www.springframework.org/schema/mvc"
+	xmlns:p="http://www.springframework.org/schema/p"
+	xmlns:util="http://www.springframework.org/schema/util"
+	xmlns:tx="http://www.springframework.org/schema/tx"
+	xsi:schemaLocation="http://www.springframework.org/schema/mvc http://www.springframework.org/schema/mvc/spring-mvc-4.3.xsd
+		http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+		http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context-4.3.xsd
+		http://www.springframework.org/schema/lang http://www.springframework.org/schema/lang/spring-lang-4.3.xsd
+		http://www.springframework.org/schema/aop http://www.springframework.org/schema/aop/spring-aop-4.3.xsd
+		http://www.springframework.org/schema/tx http://www.springframework.org/schema/tx/spring-tx-4.3.xsd
+		http://www.springframework.org/schema/util http://www.springframework.org/schema/util/spring-util-4.3.xsd">
+
+	<!-- 启用外部配置文件  -->
+	<context:property-placeholder location="classpath:db.properties"/>
+	
+	<context:component-scan base-package="com.yr"><!-- 这里配置排除指定 类上指定注解，因为这两个都是springmvc需要用的，所以这里排除掉-->
+		<context:exclude-filter type="annotation" expression="org.springframework.stereotype.Controller"/>
+		<context:exclude-filter type="annotation" expression="org.springframework.web.bind.annotation.ControllerAdvice"/>
+	</context:component-scan>
+
+	<!-- 配置数据源 -->
+	<bean id="dataSource" class="com.mchange.v2.c3p0.ComboPooledDataSource">
+		<property name="driverClass" value="${db.driver}"></property>
+    	<property name="jdbcUrl" value="${db.url}"></property>
+    	<property name="user" value="${db.user}"></property>
+    	<property name="password" value="${db.password}"></property>
+    	
+    	<!-- 连接池初始化时创建的连接数  也就是初始化加载就有连接数,需要调用就给你-->
+    	<property name="initialPoolSize" value="${db.initialPoolSize}"></property>
+    	<!-- 连接池中拥有的最大连接数  当扩充到最大连接数就不在扩充-->
+    	<property name="maxPoolSize" value="${db.maxPoolSize}"></property>
+	</bean>
+	
+	<!-- 配置SessionFactory -->
+	<bean id="sessionFactory" class="org.springframework.orm.hibernate5.LocalSessionFactoryBean"><!-- lazy-init="false" -->
+		<!-- 配置数据源属性 -->
+		<property name="dataSource" ref="dataSource"></property>
+		<!-- 加载hibernate配置文件(这里不使用配置文件,使用在spring.xml中配置) -->
+		<!-- <property name="configLocation" value="classpath:hibernate.cfg.xml"></property> -->
+		<!-- 配置 hibernate 的基本信息 -->
+		<property name="hibernateProperties">
+            <props>
+            	<!-- hibernate 所使用的数据库方言 -->
+                <prop key="hibernate.dialect">org.hibernate.dialect.MySQL5InnoDBDialect</prop>
+                <!-- 执行操作时是否在控制台打印 SQL -->
+                <prop key="hibernate.show_sql">true</prop>
+                <!-- 是否对 SQL 进行格式化 -->
+                <prop key="hibernate.format_sql">true</prop>
+                <!-- 指定自动生成数据表的策略 -->
+                <prop key="hibernate.hbm2ddl.auto">update</prop>
+                <!-- 这个默认是true,只有设置为false才会使用id自增长 --> 
+                <prop key="hibernate.id.new_generator_mappings">false</prop>
+                <!-- 调用sesion的delete方法的时候会将那个持久化对象或者游离对象的id设置为null -->
+                <!-- <prop key="hibernate.use_identifier_rollback">true</prop> -->
+            </props>
+        </property>
+		<!-- 加载实体类的映射文件位置及名称 -->
+		<property name="mappingLocations" value="classpath:com/yr/entity/*.hbm.xml"></property>
+	</bean>
+	
+	<!-- 配置事物管理器 -->
+	<bean id="transactionManager"
+		class="org.springframework.orm.hibernate5.HibernateTransactionManager">
+		<property name="sessionFactory" ref="sessionFactory" />
+	</bean>
+
+	<!-- 第一种:xml配置事务 -->
+    <!-- 声明式容器事务管理 ,transaction-manager指定事务管理器为transactionManager -->
+    <tx:advice id="txAdvice" transaction-manager="transactionManager">
+        <tx:attributes>
+        	<!-- 用底层数据库的默认隔离级别，数据库管理员设置什么就是什么 -->
+        	<tx:method name="*" propagation="REQUIRED" />
+        </tx:attributes>
+    </tx:advice>
+    
+    <!-- 只对业务逻辑层实施事务 -->
+    <aop:config>						  					  
+        <aop:pointcut expression="execution(* com.yr.service.*ServiceImpl.*(..))" id="interceptorPointCuts"/>
+        <!-- Advisor定义，切入点和通知分别为txPointcut、txAdvice -->
+        <aop:advisor advice-ref="txAdvice" pointcut-ref="interceptorPointCuts" />
+    </aop:config>
+    
+    <!--第二种:注解 事务-->
+    <!-- <tx:annotation-driven transaction-manager="transactionManager"></tx:annotation-driven> -->
+	
+</beans>
